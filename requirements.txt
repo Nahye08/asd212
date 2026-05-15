@@ -1,0 +1,11 @@
+discord.py[voice]
+cohere
+gtts
+edge-tts
+yt-dlp
+aiohttp
+python-dotenv
+PyNaCl
+lyricsgenius
+google-genai
+groq
