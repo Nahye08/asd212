@@ -438,8 +438,9 @@ _chat_mode_channels: set = set()  # set[channel_id]
 _auto_leave_pending: set = set()  # set[guild_id]
 
 # TTS 채널 큐 (서버별 순차 재생)
-_tts_queues: dict = {}   # guild_id → asyncio.Queue[(text, user_id)]
-_tts_tasks:  dict = {}   # guild_id → asyncio.Task (consumer)
+_tts_queues: dict = {}         # guild_id → asyncio.Queue[(text, user_id)]
+_tts_tasks:  dict = {}         # guild_id → asyncio.Task (consumer)
+_tts_paused_guilds: set = set()  # /나가 시 TTS 채널 자동입장 일시정지
 
 # 유저별 TTS 목소리 설정  {user_id: voice_key} — in-memory 캐시, user_learning에도 저장
 _user_tts_voice: dict = {}
@@ -460,9 +461,6 @@ TTS_VOICES = {
 }
 TTS_DEFAULT_VOICE = "sunhi"
 
-# OP 유저 set (이스터에그 ;;helloworld 로 활성화)
-_op_users: set = set()
-_OP_OWNER    = "n4hye._.luv"
 
 # on_message 에서 매 호출마다 재생성되지 않도록 모듈 상수로 선언
 OTHER_AIS = [
@@ -652,6 +650,64 @@ def build_system_prompt(
         )
 
     return base
+
+
+# ---- 이미지 생성 (Imagen 3 → Gemini Flash Image 폴백) ----
+_IMG_TRIGGERS = [
+    "이미지 생성", "이미지 만들", "이미지 그려", "이미지 뽑아",
+    "그림 그려", "그림 만들", "그림 뽑아",
+    "일러 그려", "일러스트 그려", "일러스트 만들",
+    "사진 만들", "사진 생성",
+]
+
+_IMG_STRIP = re.compile(
+    r"(이미지|그림|일러스트|일러|사진)\s*(생성|만들어|만들|그려줘|그려|뽑아줘|뽑아|해줘|해봐|줘|봐)",
+    re.IGNORECASE,
+)
+
+
+def _extract_img_prompt(text: str) -> str:
+    """메시지에서 이미지 생성 프롬프트만 추출."""
+    cleaned = _IMG_STRIP.sub("", text)
+    # 나혜야 / 나혜 호출어 제거
+    cleaned = re.sub(r"나혜야?[\s]*", "", cleaned)
+    cleaned = cleaned.strip(" ,!?~.ㅋㅎ")
+    return cleaned
+
+
+async def generate_image(prompt: str) -> bytes | None:
+    """Gemini Imagen 3 으로 이미지 생성. 실패 시 Flash Image 폴백."""
+    if not _gemini_client:
+        return None
+    # 1차: Imagen 3
+    try:
+        resp = await asyncio.to_thread(
+            _gemini_client.models.generate_images,
+            model="imagen-3.0-generate-002",
+            prompt=prompt,
+            config=google_genai_types.GenerateImagesConfig(number_of_images=1),
+        )
+        img_bytes = resp.generated_images[0].image.image_bytes
+        if img_bytes:
+            return img_bytes
+    except Exception:
+        pass
+    # 2차: gemini-2.0-flash-preview-image-generation
+    try:
+        resp2 = await asyncio.to_thread(
+            _gemini_client.models.generate_content,
+            model="gemini-2.0-flash-preview-image-generation",
+            contents=prompt,
+            config=google_genai_types.GenerateContentConfig(
+                response_modalities=["IMAGE", "TEXT"]
+            ),
+        )
+        for part in resp2.candidates[0].content.parts:
+            if part.inline_data is not None:
+                return part.inline_data.data
+    except Exception:
+        pass
+    return None
 
 
 # ---- AI 폴백 함수 (Cohere → Gemini Flash → Gemini Flash-Lite → Groq) ----
@@ -912,6 +968,65 @@ class NameButtonView(discord.ui.View):
                 )
             except Exception:
                 pass
+
+
+class CurseConfirmView(discord.ui.View):
+    """욕허용 확인 버튼 — 대화모드와 충돌 없이 동작"""
+
+    def __init__(self, gid: int, user_id: int):
+        super().__init__(timeout=60)
+        self.gid = gid
+        self.user_id = user_id
+
+    @discord.ui.button(label="이해했어, 켜줘!", style=discord.ButtonStyle.danger, emoji="🔥")
+    async def confirm(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != self.user_id:
+            await interaction.response.send_message(
+                "이 버튼은 `/욕허용` 쓴 사람만 누를 수 있어!", ephemeral=True
+            )
+            return
+        global _dirty_curse
+        _curse_mode_guilds.add(self.gid)
+        _curse_pending.pop(self.gid, None)
+        _dirty_curse = True
+        self.stop()
+        for child in self.children:
+            child.disabled = True
+        embed = discord.Embed(
+            title="🔥  욕 모드 ON",
+            description=(
+                "ㅋㅋ 확인했어! 이제 편하게 욕 써도 받아칠게!\n"
+                "단, 혐오 발언·자해 유도·실제 위협은 여전히 안 해~\n"
+                "끄려면 `/욕허용` 다시 입력해."
+            ),
+            color=0xF97316,
+        )
+        embed.set_footer(text="🌸 나혜  |  욕 모드는 서버 단위로 적용돼요")
+        await interaction.response.edit_message(embed=embed, view=self)
+
+    @discord.ui.button(label="취소", style=discord.ButtonStyle.secondary, emoji="❌")
+    async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != self.user_id:
+            await interaction.response.send_message(
+                "이 버튼은 `/욕허용` 쓴 사람만 누를 수 있어!", ephemeral=True
+            )
+            return
+        _curse_pending.pop(self.gid, None)
+        self.stop()
+        for child in self.children:
+            child.disabled = True
+        embed = discord.Embed(
+            title="❌  욕 모드 취소",
+            description="욕 모드 활성화를 취소했어. 다시 켜려면 `/욕허용` 입력해줘.",
+            color=0x6B7280,
+        )
+        embed.set_footer(text="🌸 나혜  |  욕 모드는 서버 단위로 적용돼요")
+        await interaction.response.edit_message(embed=embed, view=self)
+
+    async def on_timeout(self):
+        _curse_pending.pop(self.gid, None)
+        for child in self.children:
+            child.disabled = True
 
 
 def save_learning():
@@ -2423,43 +2538,11 @@ async def on_message(message):
     if message.author.bot:
         return
 
-    # ── 이스터에그: 나혜한테 DM으로 ;;helloworld ──
-    if isinstance(message.channel, discord.DMChannel) and message.content.strip() == ";;helloworld":
-        if message.author.name == _OP_OWNER:
-            uid = message.author.id
-            turning_on = uid not in _op_users
-            if turning_on:
-                _op_users.add(uid)
-            else:
-                _op_users.discard(uid)
-            status = "⚡  OP 모드 ON" if turning_on else "❌  OP 모드 OFF"
-            color  = 0xF59E0B if turning_on else 0x6B7280
-            embed  = discord.Embed(title=status, color=color)
-            embed.set_footer(text="🌸 나혜 | 이스터에그")
-            await message.channel.send(embed=embed)
-        return
 
     if not message.guild:
         return
 
-    # ── 욕허용 확인 대기 처리 ──
     gid = message.guild.id
-    if gid in _curse_pending and message.content.strip() == "이해했어" and message.author.id == _curse_pending[gid]["user_id"]:
-        pending = _curse_pending.pop(gid)
-        _curse_mode_guilds.add(gid)
-        _dirty_curse = True
-        embed = discord.Embed(
-            title="🔥  욕 모드 ON",
-            description=(
-                "ㅋㅋ 확인했어! 이제 편하게 욕 써도 받아칠게!\n"
-                "단, 혐오 발언·자해 유도·실제 위협은 여전히 안 해~\n"
-                "끄려면 `/욕허용` 다시 입력해."
-            ),
-            color=0xF97316,
-        )
-        embed.set_footer(text="🌸 나혜  |  욕 모드는 서버 단위로 적용돼요")
-        await message.reply(embed=embed, mention_author=False)
-        return
 
     content_lower = message.content.lower()
     mentions_other_ai = any(ai in content_lower for ai in OTHER_AIS)
@@ -2526,6 +2609,9 @@ async def on_message(message):
     if message.channel.name == "tts":
         if message.content.startswith("/"):
             await bot.process_commands(message)
+            return
+        if message.guild.id in _tts_paused_guilds:
+            await message.add_reaction("🔇")
             return
         if not message.author.voice:
             await message.add_reaction("❌")
@@ -2718,6 +2804,28 @@ async def on_message(message):
                 )
                 await message.channel.send(f"⏰ 알겠어! {time_str} 뒤에 알려줄게 ㅎ")
                 return
+
+        # ---- 이미지 생성 요청 ----
+        if any(k in content for k in _IMG_TRIGGERS):
+            img_prompt = _extract_img_prompt(content)
+            if not img_prompt:
+                await message.channel.send("어떤 이미지 그려줄까? 내용을 같이 써줘~ 예) 나혜야 이미지 그려줘 우주에 떠있는 고양이")
+                return
+            async with message.channel.typing():
+                await message.add_reaction("🎨")
+                img_bytes = await generate_image(img_prompt)
+            if img_bytes:
+                file = discord.File(
+                    fp=__import__("io").BytesIO(img_bytes),
+                    filename="image.png",
+                )
+                await message.channel.send(
+                    f"🖼️ 완성! **{img_prompt[:40]}{'...' if len(img_prompt)>40 else ''}**",
+                    file=file,
+                )
+            else:
+                await message.channel.send("😢 이미지 생성 실패했어ㅠ 잠깐 뒤에 다시 해봐!")
+            return
 
         emotion = detect_emotion(content)
         knowledge = detect_knowledge_domain(content)
@@ -3759,6 +3867,11 @@ async def play(interaction: discord.Interaction, url: str):
             queue.append(track)
         _save_queue()
         if not vc.is_playing():
+            embed = discord.Embed(
+                description=f"▶️  **{len(tracks)}곡** 재생 시작할게!",
+                color=0x818CF8,
+            )
+            await interaction.followup.send(embed=embed)
             await play_next(interaction.guild, interaction.channel)
         else:
             embed = discord.Embed(
@@ -3834,6 +3947,39 @@ async def stop(interaction: discord.Interaction):
     if interaction.guild.voice_client:
         await interaction.guild.voice_client.disconnect()
     embed = discord.Embed(description="⏹  나갈게! 또 불러줘 🎵", color=0xEF4444)
+    await interaction.response.send_message(embed=embed)
+
+
+@bot.tree.command(name="나가", description="음성채널에서 나가기 (대기열 유지)")
+async def leave(interaction: discord.Interaction):
+    vc = interaction.guild.voice_client
+    gid = interaction.guild.id
+    if vc and vc.is_connected():
+        await vc.disconnect()
+        _tts_paused_guilds.add(gid)
+        embed = discord.Embed(
+            description="👋  나갈게~\n🔇  TTS 채널 자동입장도 껐어. 다시 켜려면 `/tts켜기`",
+            color=0xFBBF24,
+        )
+        await interaction.response.send_message(embed=embed)
+    else:
+        embed = discord.Embed(description="❌  나 지금 통화방 없는데?", color=0xEF4444)
+        await interaction.response.send_message(embed=embed)
+
+
+@bot.tree.command(name="tts켜기", description="TTS 채널 자동입장 다시 켜기 (/나가로 꺼진 경우)")
+async def tts_resume(interaction: discord.Interaction):
+    gid = interaction.guild.id
+    if gid in _tts_paused_guilds:
+        _tts_paused_guilds.discard(gid)
+        embed = discord.Embed(
+            description="🔊  TTS 채널 자동입장 다시 켰어! 이제 tts 채널에 쓰면 읽어줄게~",
+            color=0x34D399,
+        )
+    else:
+        embed = discord.Embed(
+            description="ℹ️  TTS 채널 이미 켜져 있어!", color=0x94A3B8
+        )
     await interaction.response.send_message(embed=embed)
 
 
@@ -4627,20 +4773,6 @@ class PatchNoteView(discord.ui.View):
                 pass
 
 
-async def _curse_confirm_timeout(gid: int, channel):
-    await asyncio.sleep(60)
-    if gid in _curse_pending:
-        _curse_pending.pop(gid, None)
-        try:
-            embed = discord.Embed(
-                title="⏰  시간 초과",
-                description="욕 모드 확인 시간이 지났어.\n다시 켜려면 `/욕허용` 입력해줘.",
-                color=0x6B7280,
-            )
-            embed.set_footer(text="🌸 나혜  |  이 메시지는 10초 후 사라져요")
-            await channel.send(embed=embed, delete_after=10)
-        except Exception:
-            pass
 
 
 @bot.tree.command(
@@ -4705,14 +4837,9 @@ async def curse_toggle(interaction: discord.Interaction):
             value="이 서버의 모든 채널에서 나혜와 대화할 때 적용돼.",
             inline=False,
         )
-        embed.add_field(
-            name="📝  확인 방법",
-            value="아래 내용을 이해했으면 채팅창에 **이해했어** 라고 입력해줘.\n60초 안에 입력 안 하면 자동 취소돼.",
-            inline=False,
-        )
-        embed.set_footer(text="🌸 나혜  |  ⏱️ 60초 대기 중 · 이해했어 입력 시 활성화")
-        await interaction.response.send_message(embed=embed)
-        asyncio.create_task(_curse_confirm_timeout(gid, interaction.channel))
+        embed.set_footer(text="🌸 나혜  |  ⏱️ 60초 안에 버튼 눌러줘")
+        view = CurseConfirmView(gid, interaction.user.id)
+        await interaction.response.send_message(embed=embed, view=view)
 
 
 @bot.tree.command(name="패치노트", description="나혜 업데이트 내역 확인")
