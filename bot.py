@@ -729,7 +729,7 @@ async def _chat_with_fallback(
                     messages=messages_full,
                     temperature=0.9,
                 ),
-                timeout=10,
+                timeout=5,
             )
             text_item = next(
                 (c for c in response.message.content if hasattr(c, "text")), None
@@ -2763,7 +2763,8 @@ async def on_message(message):
                     "부른 거 맞지?ㅎㅎ",
                 ]
                 await message.channel.send(random.choice(reactions))
-            return
+                return
+            # 이스터에그 OFF일 때는 AI 응답으로 fall-through (이름만 불러도 대답)
         # 내용 있으면 AI 응답으로 fall-through
 
     if message.channel.name == "tts":
@@ -4946,7 +4947,7 @@ def build_patch_embed() -> discord.Embed:
     embed.set_author(name="📋  나혜 패치 노트")
     for emoji, name, desc in p["entries"]:
         embed.add_field(name=f"{emoji}  {name}", value=f"> {desc}", inline=False)
-    embed.set_footer(text=f"🌸  나혜  |  {p['date']}  ·  버그·건의는 채팅으로 알려줘!")
+    embed.set_footer(text=f"🌸  나혜  |  {p['date']}  ·  버그·건의는 /건의 로 알려줘!")
     return embed
 
 
@@ -5022,6 +5023,52 @@ async def curse_toggle(interaction: discord.Interaction):
 @bot.tree.command(name="패치노트", description="나혜 최신 업데이트 확인")
 async def patchnote(interaction: discord.Interaction):
     await interaction.response.send_message(embed=build_patch_embed())
+
+
+class FeedbackModal(discord.ui.Modal, title="버그 / 건의사항"):
+    content_input = discord.ui.TextInput(
+        label="내용",
+        placeholder="버그 내용이나 건의사항을 자유롭게 써줘!",
+        style=discord.TextStyle.paragraph,
+        max_length=500,
+        min_length=5,
+        required=True,
+    )
+
+    async def on_submit(self, interaction: discord.Interaction):
+        text = self.content_input.value.strip()
+        user = interaction.user
+        guild = interaction.guild
+        owner = None
+        try:
+            app_info = await bot.application_info()
+            owner = app_info.owner
+        except Exception:
+            pass
+        if owner:
+            embed = discord.Embed(
+                title="📬  새 건의/버그 접수",
+                description=text,
+                color=0xFBBF24,
+            )
+            embed.set_author(
+                name=f"{user.display_name} ({user.name})",
+                icon_url=user.display_avatar.url,
+            )
+            embed.add_field(name="서버", value=guild.name if guild else "DM", inline=True)
+            embed.add_field(name="유저 ID", value=str(user.id), inline=True)
+            try:
+                await owner.send(embed=embed)
+                await interaction.response.send_message("전달했어! 확인하고 반영할게ㅎ", ephemeral=True)
+            except Exception:
+                await interaction.response.send_message("전달하다가 오류 났어ㅠ 채팅으로 직접 말해줘!", ephemeral=True)
+        else:
+            await interaction.response.send_message("지금 전달이 안 돼ㅠ 채팅으로 말해줘!", ephemeral=True)
+
+
+@bot.tree.command(name="건의", description="버그 신고 또는 건의사항 전달하기")
+async def feedback(interaction: discord.Interaction):
+    await interaction.response.send_modal(FeedbackModal())
 
 
 HELP_PAGES = [
