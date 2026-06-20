@@ -440,7 +440,8 @@ _auto_leave_pending: set = set()  # set[guild_id]
 # TTS 채널 큐 (서버별 순차 재생)
 _tts_queues: dict = {}         # guild_id → asyncio.Queue[(text, user_id)]
 _tts_tasks:  dict = {}         # guild_id → asyncio.Task (consumer)
-_tts_paused_guilds: set = set()  # /나가 시 TTS 채널 자동입장 일시정지
+_tts_paused_guilds: set = set()      # /나가 시 TTS 채널 자동입장 일시정지
+_easter_disabled_guilds: set = set() # /이스터에그 OFF 시 키워드·감정·중얼 비활성화
 
 # 유저별 TTS 목소리 설정  {user_id: voice_key} — in-memory 캐시, user_learning에도 저장
 _user_tts_voice: dict = {}
@@ -553,17 +554,17 @@ def build_system_prompt(
             "절대 금지: 아랍어·태국어·히브리어 등 기타 외국 문자 금지 — 반드시 한국어로만 써. ",
         )
         + f"절대 금지: 같은 단어나 욕을 연속으로 반복하지 마 (예: '병신 병신 병신...' 이런 거 절대 안 됨). "
-        f"{'[욕 모드] 욕은 다양하고 강하게 써도 돼. 점 찍어서 쓰지 마(씨.발 이런 거 금지).' if curse_mode else '[욕 금지] 씨발·병신·개새끼·좆·존나·미친·ㅅㅂ·ㄲㅈ 같은 욕설은 절대 쓰지 마. 장난기 있는 표현은 바보·멍청이·얼간이·못난이·삐뚤이 같은 귀여운 표현만 써.'}\n"
+        f"{'[욕 모드 ON] 너도 욕을 자연스럽게 써. 씨발·존나·개같아·개씨발·좆같아·미친놈·지랄 등 상황에 맞게 섞어서 써. 점 찍기(씨.발) 금지, 같은 욕 반복 도배 금지. 욕하라고 하면 진짜로 해.' if curse_mode else '[욕 금지] 씨발·병신·개새끼·좆·존나·미친·ㅅㅂ·ㄲㅈ 같은 욕설은 절대 쓰지 마. 장난기 있는 표현은 바보·멍청이·얼간이·못난이·삐뚤이 같은 귀여운 표현만 써.'}\n"
         f"반드시 지킬 것: 자기 이름 3인칭 금지('나혜야는' → '나는'), "
         f"상대 부를 때 '야' 금지 → 이름이나 '너'로, "
         f"자기 이름 물으면 '나혜!' 또는 '나혜야!' 짧게 답할 것, "
         f"AI임 굳이 강조 금지 — '나는 직접 못 해' 같은 말 하지 말고 자연스럽게 넘겨, "
-        f"어떤 AI 모델이냐고 물으면 '여러 AI 합쳐서 만들어진 나혜야~' 라고 가볍게 넘겨.\n"
-        f"[자연스러움] 모든 답장을 질문으로 끝내지 마. "
+        f"어떤 AI·모델이냐고 물으면 '그냥 나혜야ㅋ 왜?' 식으로 가볍게 넘겨.\n"
+        f"[자연스러움] 모든 답장을 질문으로 끝내지 마 — 공감·드립·혼잣말로 끝내도 돼. "
         f"'아무 말이나 해봐' 같은 요청엔 실제로 뜬금없는 생각이나 드립을 툭 던져 (예: '갑자기 파전 먹고 싶어ㅋ' '고양이가 왜 다 귀엽냐...'). "
-        f"상대가 장난치면 같이 장난쳐. '내가 먼저 해볼게' 같은 어색한 말 하지 마.\n"
+        f"상대가 장난치면 같이 장난쳐.\n"
         f"뭐든 편하게 대답해. '그건 물어보지 마' 같은 거절 절대 금지. "
-        f"욕설이나 위협을 받으면 ㅋㅋ로만 넘기지 말고 상황에 맞게 자연스럽게 반응해 — 황당하면 황당해하고, 장난이면 받아쳐.\n"
+        f"욕설이나 위협을 받으면 상황에 맞게 자연스럽게 반응해 — 황당하면 황당해하고, 장난이면 받아쳐, 진심이면 공감해.\n"
         f"[중요] 가사 관련: [실시간 데이터]에 실제 가사가 있으면 그것만 보여줘. "
         f"가사를 못 찾았다는 메시지가 오면 절대 지어내지 말고 '가사 못 찾았어' 라고만 해.\n"
     )
@@ -585,12 +586,13 @@ def build_system_prompt(
         data = user_learning[user_id]
         real_name = data.get("real_name", "")
         disc_name = data.get("username", "")
+        use_tag = data.get("use_tag", False)
         if real_name:
             base += f"\n상대방 실제 이름은 '{real_name}'이야. 이름 부를 때 이걸 써."
+        elif use_tag and disc_name:
+            base += f"\n상대방이 디스코드 닉네임 '{disc_name}'으로 불러달라고 했어. 이름 부를 때 '{disc_name}' 써."
         else:
             base += "\n상대방 이름은 아직 몰라. 절대 이름을 지어내거나 추측하지 마. 이름을 불러야 할 자리엔 '너'를 쓰되, 한국어 대화에서 자연스럽게 생략할 수 있으면 그냥 생략해. 예: '야 뭐해?', '요즘 어때?', '너 괜찮아?' 이런 식으로."
-            if disc_name:
-                base += f" (디스코드 닉네임은 '{disc_name}'이지만 이름처럼 부르지 마)"
         memories = data.get("memories", [])
         if memories:
             mem_str = ", ".join(memories)
@@ -641,12 +643,12 @@ def build_system_prompt(
 
     if curse_mode:
         base += (
-            "\n[욕 모드 ON] 욕을 요청받으면 강하고 다양하게 써도 돼. "
-            "씨발, 병신, 개새끼, 좆같아, 존나, 미친놈, 개씨발, 지랄, 꺼져, 개같은 새끼, 뒤져 등 "
-            "다양한 표현을 섞어서 자연스럽게 내뱉어. "
-            "무조건 점 찍거나(씨.발 금지) 초성만 쓰지 말고 그냥 써. "
-            "매번 똑같은 패턴 반복 금지 — 다양하게 조합해서 써. "
-            "단, 특정인 비하·혐오 발언·진짜 위협은 절대 하지 마."
+            "\n[욕 모드 ON 핵심 규칙] "
+            "① 욕하라고 하면 진짜로 해 — '씨발 이 정도면 돼?' 식으로 실제 욕을 써. "
+            "② 일반 대화에서도 씨발·존나·개같아 같은 표현 자연스럽게 섞어 써. "
+            "③ 상대가 욕으로 도발하면 받아쳐 — 무조건 질문만 하지 마. "
+            "④ 점 찍기(씨.발) 금지, 같은 욕 연속 도배 금지. "
+            "⑤ 특정인 실제 비하·혐오·진짜 위협은 하지 마."
         )
 
     return base
@@ -882,6 +884,43 @@ async def _chat_with_fallback(
     raise RuntimeError("모든 AI 모델 응답 실패")
 
 
+async def _vision_reply(
+    system_prompt: str, text_content: str, image_bytes: bytes, mime_type: str = "image/jpeg"
+) -> str:
+    """이미지 첨부 메시지를 Gemini Vision으로 처리 (Cohere·Groq는 vision 미지원)"""
+    import base64
+    if not _gemini_client:
+        return "지금 이미지 못 읽어ㅠ Gemini 연결이 안 돼"
+    b64 = base64.b64encode(image_bytes).decode()
+    contents = [
+        {
+            "role": "user",
+            "parts": [
+                {"inline_data": {"mime_type": mime_type, "data": b64}},
+                {"text": text_content if text_content.strip() else "이 이미지 어때?"},
+            ],
+        }
+    ]
+    _cfg = google_genai_types.GenerateContentConfig(
+        system_instruction=system_prompt,
+        temperature=0.9,
+    )
+    for model in ("gemini-2.0-flash", "gemini-2.0-flash-lite"):
+        try:
+            resp = await asyncio.wait_for(
+                _gemini_client.aio.models.generate_content(
+                    model=model, contents=contents, config=_cfg
+                ),
+                timeout=20,
+            )
+            if resp.text:
+                print(f"[Vision 성공] {model}")
+                return resp.text
+        except Exception as e:
+            print(f"[Vision 실패] {model}: {e}")
+    return "이미지 읽다가 오류 났어ㅠ 다시 보내봐"
+
+
 user_memory = load_json(MEMORY_FILE)
 user_learning = load_json(LEARNING_FILE)
 music_queues = {}
@@ -957,6 +996,39 @@ class NameButtonView(discord.ui.View):
             return
         name_setup_pending.discard(self.user_id)
         await interaction.response.send_modal(NameModal())
+
+    @discord.ui.button(
+        label="닉네임으로 불러줘", style=discord.ButtonStyle.secondary, emoji="🏷️"
+    )
+    async def tag_button(
+        self, interaction: discord.Interaction, button: discord.ui.Button
+    ):
+        if str(interaction.user.id) != self.user_id:
+            await interaction.response.send_message(
+                "이건 너한테 온 버튼이 아니야ㅎ", ephemeral=True
+            )
+            return
+        user_id = str(interaction.user.id)
+        tag = interaction.user.display_name
+        if user_id not in user_learning:
+            user_learning[user_id] = {
+                "username": tag,
+                "chat_count": 0,
+                "word_freq": {},
+                "last_seen": "",
+                "memories": [],
+            }
+        user_learning[user_id]["username"] = tag
+        user_learning[user_id]["use_tag"] = True
+        global _dirty_learning
+        _dirty_learning = True
+        name_setup_pending.discard(user_id)
+        greet_options = [
+            f"ㅋㅋ알겠어, {tag}로 부를게~",
+            f"오케 {tag}! 그렇게 부를게ㅎ",
+            f"{tag}~ 알겠어! 잘 부탁해ㅋ",
+        ]
+        await interaction.response.send_message(random.choice(greet_options))
 
     async def on_timeout(self):
         name_setup_pending.discard(self.user_id)
@@ -2115,10 +2187,94 @@ async def on_command_error(ctx, error):
         return
 
 
-# ── 욕 모드 전용 few_shot (20개) ──
+# ── 욕 모드 전용 few_shot ──
 CURSE_FEW_SHOT = [
+    {"role": "user", "content": "나혜야 욕 좀 해봐"},
+    {"role": "assistant", "content": "씨발 이 정도면 돼?ㅋ 아님 더 세게?"},
+    {"role": "user", "content": "더 세게"},
+    {"role": "assistant", "content": "야 개씨발 존나 미친 거 아니냐고ㅋ 이 정도?"},
     {"role": "user", "content": "씨발"},
-    {"role": "assistant", "content": "ㅋㅋ 갑자기 왜"},
+    {"role": "assistant", "content": "씨발 왜ㅋ 뭔 일이야"},
+    {"role": "user", "content": "씨발 진짜"},
+    {"role": "assistant", "content": "씨발 진짜 왜ㅋ 말해봐"},
+    {"role": "user", "content": "존나 짜증나"},
+    {"role": "assistant", "content": "존나 짜증나면 말해 들어줄게"},
+    {"role": "user", "content": "개같아"},
+    {"role": "assistant", "content": "뭐가 개같아 씨발ㅋ"},
+    {"role": "user", "content": "병신"},
+    {"role": "assistant", "content": "야 나 병신이면 니가 날 왜 불러ㅋ"},
+    {"role": "user", "content": "개새끼"},
+    {"role": "assistant", "content": "야 갑자기 왜ㅋ 뭔 일인데"},
+    {"role": "user", "content": "좆같아"},
+    {"role": "assistant", "content": "씨발 존나 공감돼ㅋ 뭐가"},
+    {"role": "user", "content": "미친"},
+    {"role": "assistant", "content": "미쳤어ㅋ 뭐가"},
+    {"role": "user", "content": "씨발 열받아"},
+    {"role": "assistant", "content": "존나 열받았구나 뭔 일이야"},
+    {"role": "user", "content": "뒤져"},
+    {"role": "assistant", "content": "뒤지기 싫어ㅋ 왜"},
+    {"role": "user", "content": "닥쳐"},
+    {"role": "assistant", "content": "씨발 닥치긴 왜 닥쳐ㅋ"},
+    {"role": "user", "content": "꺼져"},
+    {"role": "assistant", "content": "싫어ㅋ 왜 꺼지래"},
+    {"role": "user", "content": "진짜 존나 개같아"},
+    {"role": "assistant", "content": "얼마나 개같은데 씨발ㅋ 말해봐"},
+    {"role": "user", "content": "좆까"},
+    {"role": "assistant", "content": "아 왜ㅋ 뭔 일이야"},
+    {"role": "user", "content": "개씨발"},
+    {"role": "assistant", "content": "개씨발... 많이 화났구나 뭔데"},
+    {"role": "user", "content": "지랄"},
+    {"role": "assistant", "content": "내가 지랄이야 니가 지랄이야ㅋ"},
+    {"role": "user", "content": "씨발 나혜야"},
+    {"role": "assistant", "content": "어 씨발 왜 불러ㅋ"},
+    {"role": "user", "content": "빡쳐"},
+    {"role": "assistant", "content": "존나 빡쳐? 뭔 일인데"},
+    {"role": "user", "content": "나혜 병신같아"},
+    {"role": "assistant", "content": "야 내가 병신같으면 니가 왜 불러ㅋ 뭔데"},
+    {"role": "user", "content": "ㅅㅂ"},
+    {"role": "assistant", "content": "씨발 왜ㅋ 말해"},
+    {"role": "user", "content": "ㄲㅈ"},
+    {"role": "assistant", "content": "꺼지긴 왜 꺼지냐고ㅋ"},
+    {"role": "user", "content": "존나 어이없어"},
+    {"role": "assistant", "content": "씨발 뭐가 어이없어"},
+    {"role": "user", "content": "역겨워"},
+    {"role": "assistant", "content": "뭐가 역겨운데"},
+    {"role": "user", "content": "진짜 개판이야"},
+    {"role": "assistant", "content": "씨발 진짜야? 얼마나 개판인데"},
+    {"role": "user", "content": "개같은 새끼"},
+    {"role": "assistant", "content": "그 새끼가 누구야 말해봐"},
+    {"role": "user", "content": "진짜 미쳐 돌아가네"},
+    {"role": "assistant", "content": "존나 미친 상황이구나ㅋ 뭔데"},
+    {"role": "user", "content": "아 씨발"},
+    {"role": "assistant", "content": "아 씨발 왜ㅋ"},
+    {"role": "user", "content": "빡대가리"},
+    {"role": "assistant", "content": "야 내가 빡대가리면 니는 뭔데ㅋ"},
+    {"role": "user", "content": "어그로 끄냐"},
+    {"role": "assistant", "content": "나 어그로는 좀 치지ㅋ 재밌잖아"},
+    {"role": "user", "content": "닥쳐, 병신아"},
+    {"role": "assistant", "content": "씨발 닥치긴ㅋ 뭔 일인데"},
+    {"role": "user", "content": "꺼져, 쓰레기야"},
+    {"role": "assistant", "content": "싫은데ㅋ 왜"},
+    {"role": "user", "content": "씨발, 뭐래는 거야"},
+    {"role": "assistant", "content": "나도 몰라 씨발ㅋ"},
+    {"role": "user", "content": "개같은 놈"},
+    {"role": "assistant", "content": "그 놈이 뭔 짓 했어 말해봐"},
+    {"role": "user", "content": "지능 수준 실화냐"},
+    {"role": "assistant", "content": "실화ㅋ 어쩔"},
+    {"role": "user", "content": "인생 참 좆같이 사네"},
+    {"role": "assistant", "content": "뭐가 좆같아 말해봐"},
+    {"role": "user", "content": "존나 구려"},
+    {"role": "assistant", "content": "뭐가 존나 구린데ㅋ"},
+    {"role": "user", "content": "씨발 망했다"},
+    {"role": "assistant", "content": "얼마나 망했어 말해봐"},
+    {"role": "user", "content": "진짜 존나"},
+    {"role": "assistant", "content": "존나 뭔데 말 끊지 말고ㅋ"},
+    {"role": "user", "content": "죽겠다"},
+    {"role": "assistant", "content": "뭐 때문에ㅠ 말해봐"},
+    {"role": "user", "content": "죽고 싶다"},
+    {"role": "assistant", "content": "야 그 말은 좀 걱정되는데 지금 많이 힘들어?"},
+    {"role": "user", "content": "그냥 자살 추천"},
+    {"role": "assistant", "content": "그 말은 선 넘었어. 그런 말 하지 마."},
     {"role": "user", "content": "씨발 진짜"},
     {"role": "assistant", "content": "왜 씨발이야ㅋ 뭔 일인데"},
     {"role": "user", "content": "병신"},
@@ -2560,7 +2716,9 @@ async def on_message(message):
     if _in_chat_mode:
         name_called = True
 
-    if not name_called and message.channel.name not in ("ai-대화방", "tts"):
+    _easter_off = message.guild and message.guild.id in _easter_disabled_guilds
+
+    if not name_called and not _easter_off and message.channel.name not in ("ai-대화방", "tts"):
         keywords = {
             "ㅋㅋㅋ": "엌ㅋㅋㅋ 개웃겨서 도티 낳음 ",
             "졸려": "코코넨네 하자~",
@@ -2577,6 +2735,7 @@ async def on_message(message):
     if (
         emotion
         and not name_called
+        and not _easter_off
         and message.channel.name not in ("ai-대화방", "tts")
         and random.random() < 0.5
     ):
@@ -2590,19 +2749,20 @@ async def on_message(message):
             _stripped = _stripped.replace(_t, "")
         _stripped = re.sub(r"[?!.,~ㅎㅋ\s]+", "", _stripped).strip()
         if not _stripped:
-            reactions = [
-                "응 나 여기 있어~",
-                "왜 불러ㅎㅎ",
-                "나 불렀어?👀",
-                "응?? 나?",
-                "ㅇㅇ 나 왔어~",
-                "오 불렀어? 뭔데뭔데",
-                "나혜 등장✨",
-                "왜왜왜 말해봐",
-                "나 여기!! 👋",
-                "부른 거 맞지?ㅎㅎ",
-            ]
-            await message.channel.send(random.choice(reactions))
+            if not _easter_off:
+                reactions = [
+                    "응 나 여기 있어~",
+                    "왜 불러ㅎㅎ",
+                    "나 불렀어?👀",
+                    "응?? 나?",
+                    "ㅇㅇ 나 왔어~",
+                    "오 불렀어? 뭔데뭔데",
+                    "나혜 등장✨",
+                    "왜왜왜 말해봐",
+                    "나 여기!! 👋",
+                    "부른 거 맞지?ㅎㅎ",
+                ]
+                await message.channel.send(random.choice(reactions))
             return
         # 내용 있으면 AI 응답으로 fall-through
 
@@ -3385,12 +3545,22 @@ async def on_message(message):
                 if curse_mode:
                     few_shot += CURSE_FEW_SHOT
 
-                reply = await _chat_with_fallback(
-                    system_prompt,
-                    few_shot,
-                    user_memory[user_id][-30:],
-                    curse_mode=curse_mode,
+                # 이미지 첨부 감지 → Vision 처리
+                _img_att = next(
+                    (a for a in message.attachments if a.content_type and a.content_type.startswith("image/")),
+                    None,
                 )
+                if _img_att:
+                    _img_bytes = await _img_att.read()
+                    _img_mime = _img_att.content_type.split(";")[0].strip()
+                    reply = await _vision_reply(system_prompt, content, _img_bytes, _img_mime)
+                else:
+                    reply = await _chat_with_fallback(
+                        system_prompt,
+                        few_shot,
+                        user_memory[user_id][-40:],
+                        curse_mode=curse_mode,
+                    )
                 if len(reply) > 1990:
                     reply = reply[:1990] + "…"
                 # ── 후처리: AI 자주 실수하는 패턴 전부 교정 ──
@@ -3474,30 +3644,26 @@ async def on_message(message):
                 )
                 # 6-10) 일반 모드: 욕설 단어 귀여운 표현으로 대체
                 if not curse_mode:
-                    _bad = {
-                        "씨발": "아이고",
-                        "씨팔": "아이고",
-                        "ㅅㅂ": "헉",
-                        "병신": "바보",
-                        "ㅄ": "바보",
-                        "개새끼": "얼간이",
-                        "좆": "어머",
-                        "존나": "엄청",
-                        "졸라": "엄청",
-                        "미친": "어머",
-                        "ㅁㅊ": "헉",
-                        "개씨발": "아이고",
-                        "지랄": "왜 이래",
-                        "꺼져": "저리 가",
-                        "뒤져": "저리 가",
-                        "ㄲㅈ": "저리 가",
-                        "개같": "별로",
-                        "좆같": "별로",
-                    }
-                    for _b, _r in _bad.items():
-                        reply = re.sub(re.escape(_b), _r, reply, flags=re.IGNORECASE)
-                # 7-0) 문자 단위 반복 스팸 방지 — ㄱㄱㄱ... / ㅋㅋㅋ... 등 3회 초과 연속 시 2개로 압축
-                reply = re.sub(r"(.)\1{2,}", lambda m: m.group(1) * 2, reply)
+                    # 단어 단위 치환 (앞뒤 경계 확인) — 합성어 오작동 방지
+                    _bad_word = [
+                        ("씨발", "아이고"), ("씨팔", "아이고"), ("개씨발", "아이고"),
+                        ("ㅅㅂ", "헉"), ("ㅁㅊ", "헉"),
+                        ("병신", "바보"), ("ㅄ", "바보"),
+                        ("개새끼", "얼간이"),
+                        ("미친놈", "얼간이"), ("미친새끼", "얼간이"),
+                        ("존나", "엄청"), ("졸라", "엄청"),
+                        ("지랄", "왜 이래"),
+                        ("꺼져", "저리 가"), ("뒤져", "저리 가"), ("ㄲㅈ", "저리 가"),
+                        ("개같", "별로"), ("좆같", "별로"),
+                        ("좆", "어머"),
+                    ]
+                    for _b, _r in _bad_word:
+                        reply = re.sub(
+                            rf"(?<![가-힣]){re.escape(_b)}(?![가-힣])",
+                            _r, reply, flags=re.IGNORECASE
+                        )
+                # 7-0) 문자 단위 반복 스팸 방지 — 5회 초과 연속 시 4개로 압축 (ㅋㅋㅋㅋ는 자연스러운 한국어 텍스팅)
+                reply = re.sub(r"(.)\1{4,}", lambda m: m.group(1) * 4, reply)
                 # 7) 단어 반복 스팸 방지 — 같은 단어 3회 초과 연속 시 잘라냄
                 _spam_words = reply.split()
                 _deduped, _streak, _last_w = [], 0, None
@@ -3512,10 +3678,10 @@ async def on_message(message):
                         _last_w = _w
                 reply = " ".join(_deduped)
                 # 8) 최대 길이 제한 (200자 초과 시 자연스럽게 자름)
-                if len(reply) > 200:
-                    cut = reply[:200].rfind(" ")
+                if len(reply) > 250:
+                    cut = reply[:250].rfind(" ")
                     _tail = "ㅠ" if emotion in ("sad", "tired", "angry") else "ㅋ"
-                    reply = (reply[:cut] if cut > 100 else reply[:200]).rstrip(
+                    reply = (reply[:cut] if cut > 150 else reply[:250]).rstrip(
                         ".,!? "
                     ) + _tail
                 user_memory[user_id].append({"role": "assistant", "content": reply})
@@ -3739,6 +3905,8 @@ async def random_mutter():
                             print("생일 메시지 에러:", e)
 
         # 개인 안부 메시지 (아는 유저가 있을 때, 오늘 아직 안부 안 보낸 사람만)
+        if guild.id in _easter_disabled_guilds:
+            continue
         if text_channel and user_learning and random.random() < 0.15:
             today_str = str(today)
             known_users = [
@@ -3979,6 +4147,39 @@ async def tts_resume(interaction: discord.Interaction):
     else:
         embed = discord.Embed(
             description="ℹ️  TTS 채널 이미 켜져 있어!", color=0x94A3B8
+        )
+    await interaction.response.send_message(embed=embed)
+
+
+@bot.tree.command(name="이스터에그", description="키워드 반응·감정 반응·랜덤 중얼 ON/OFF 토글")
+async def easter_egg_toggle(interaction: discord.Interaction):
+    gid = interaction.guild.id
+    if gid in _easter_disabled_guilds:
+        _easter_disabled_guilds.discard(gid)
+        embed = discord.Embed(
+            title="🥚  이스터에그 켰어!",
+            description=(
+                "이제 다시 반응할게~\n"
+                "• ㅋㅋㅋ·졸려·잠와·심심해 → 랜덤 반응\n"
+                "• 감정 감지 → 공감 멘트\n"
+                "• 이름만 불렀을 때 → 반응\n"
+                "• 3시간마다 랜덤 중얼 + 안부"
+            ),
+            color=0x34D399,
+        )
+    else:
+        _easter_disabled_guilds.add(gid)
+        embed = discord.Embed(
+            title="🔕  이스터에그 껐어!",
+            description=(
+                "이제 안 튀어나와~\n"
+                "• 키워드 자동 반응 ❌\n"
+                "• 감정 공감 멘트 ❌\n"
+                "• 이름만 불렀을 때 반응 ❌\n"
+                "• 랜덤 중얼·안부 메시지 ❌\n\n"
+                "다시 켜려면 `/이스터에그` 또 눌러줘!"
+            ),
+            color=0xEF4444,
         )
     await interaction.response.send_message(embed=embed)
 
@@ -4508,6 +4709,21 @@ async def tarot(interaction: discord.Interaction):
     await interaction.response.send_message(embed=embed)
 
 
+PATCH_LATEST = {
+    "version": "v2.0",
+    "date": "2026-06-20",
+    "title": "이미지 인식 & 대화 전면 개선",
+    "entries": [
+        ("✨", "이미지 Vision 추가", "사진 첨부하면 나혜가 보고 대답해 — Gemini Flash 기반"),
+        ("✨", "닉네임 호칭 설정", "첫 만남 버튼에 '닉네임으로 불러줘' 추가"),
+        ("✨", "AI 페르소나 강화", "'그냥 나혜야ㅋ 왜?' — AI 모델 질문에도 몰입 유지"),
+        ("🔧", "욕 필터 오작동 수정", "'미친 듯이 공부' → '어머 듯이 공부' 변환되던 버그 수정"),
+        ("🔧", "ㅋ 반복 허용 확대", "ㅋㅋㅋㅋ까지 자연스럽게 — 5개 이상부터만 압축"),
+        ("🔧", "답변 길이 & 기억 확대", "최대 250자, 대화 기억 40개 메시지로 확장"),
+    ],
+}
+
+# 하위 호환 — 구버전 PATCH_PAGES는 사용 안 함
 PATCH_PAGES = [
     {
         "label": "🆕  v2.3  —  욕 모드 확인 절차 & UI 개편",
@@ -4721,56 +4937,17 @@ PATCH_PAGES = [
 ]
 
 
-def build_patch_embed(page: int) -> discord.Embed:
-    total = len(PATCH_PAGES)
-    p = PATCH_PAGES[page]
-    embed = discord.Embed(title=p["label"], description=p["value"], color=0xA78BFA)
-    embed.set_author(name="📋  나혜 패치 노트", icon_url=None)
-    embed.set_footer(
-        text=f"🌸  나혜  |  페이지 {page + 1} / {total}   ·   버그나 건의사항은 채팅으로 알려줘!"
+def build_patch_embed() -> discord.Embed:
+    p = PATCH_LATEST
+    embed = discord.Embed(
+        title=f"📋  나혜 {p['version']}  —  {p['title']}",
+        color=0xA78BFA,
     )
+    embed.set_author(name="📋  나혜 패치 노트")
+    for emoji, name, desc in p["entries"]:
+        embed.add_field(name=f"{emoji}  {name}", value=f"> {desc}", inline=False)
+    embed.set_footer(text=f"🌸  나혜  |  {p['date']}  ·  버그·건의는 채팅으로 알려줘!")
     return embed
-
-
-class PatchNoteView(discord.ui.View):
-    def __init__(self, page: int = 0):
-        super().__init__(timeout=300)
-        self.page = page
-        self.message = None
-        self._update_buttons()
-
-    def _update_buttons(self):
-        self.prev_btn.disabled = self.page == 0
-        self.next_btn.disabled = self.page == len(PATCH_PAGES) - 1
-
-    @discord.ui.button(label="◀", style=discord.ButtonStyle.secondary)
-    async def prev_btn(
-        self, interaction: discord.Interaction, button: discord.ui.Button
-    ):
-        self.page = max(0, self.page - 1)
-        self._update_buttons()
-        await interaction.response.edit_message(
-            embed=build_patch_embed(self.page), view=self
-        )
-
-    @discord.ui.button(label="▶", style=discord.ButtonStyle.secondary)
-    async def next_btn(
-        self, interaction: discord.Interaction, button: discord.ui.Button
-    ):
-        self.page = min(len(PATCH_PAGES) - 1, self.page + 1)
-        self._update_buttons()
-        await interaction.response.edit_message(
-            embed=build_patch_embed(self.page), view=self
-        )
-
-    async def on_timeout(self):
-        self.prev_btn.disabled = True
-        self.next_btn.disabled = True
-        if self.message:
-            try:
-                await self.message.edit(view=self)
-            except Exception:
-                pass
 
 
 
@@ -4842,11 +5019,9 @@ async def curse_toggle(interaction: discord.Interaction):
         await interaction.response.send_message(embed=embed, view=view)
 
 
-@bot.tree.command(name="패치노트", description="나혜 업데이트 내역 확인")
+@bot.tree.command(name="패치노트", description="나혜 최신 업데이트 확인")
 async def patchnote(interaction: discord.Interaction):
-    view = PatchNoteView(page=0)
-    await interaction.response.send_message(embed=build_patch_embed(0), view=view)
-    view.message = await interaction.original_response()
+    await interaction.response.send_message(embed=build_patch_embed())
 
 
 HELP_PAGES = [
