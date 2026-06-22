@@ -74,10 +74,10 @@ intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix="/", intents=intents)
 
-MEMORY_FILE   = "memory.json"
+MEMORY_FILE = "memory.json"
 LEARNING_FILE = "learning.json"
-QUEUE_FILE    = "queue.json"
-CURSE_FILE    = "curse.json"
+QUEUE_FILE = "queue.json"
+CURSE_FILE = "curse.json"
 
 KST = datetime.timezone(datetime.timedelta(hours=9))
 
@@ -122,7 +122,18 @@ MEMORY_PATTERNS = [
 ]
 
 # 모듈 레벨 상수 — update_learning 호출마다 재생성하지 않음
-_BOT_WORDS = {"나혜야", "나혜", "나혜님", "ai나혜", "AI나혜", "나헤", "나헤야", "Nahye", "nahye", "NAHYE"}
+_BOT_WORDS = {
+    "나혜야",
+    "나혜",
+    "나혜님",
+    "ai나혜",
+    "AI나혜",
+    "나헤",
+    "나헤야",
+    "Nahye",
+    "nahye",
+    "NAHYE",
+}
 
 # 주기적 저장 dirty 플래그
 _dirty_learning: bool = False
@@ -161,7 +172,9 @@ def update_learning(user_id, username, message_content):
     if "feedback_warned" not in user_learning[user_id]:
         user_learning[user_id]["feedback_warned"] = False
     prev_count = user_learning[user_id]["chat_count"]
-    prev_level, _, _, _, _ = get_level(prev_count) if prev_count > 0 else (1, "", "", 0, 10)
+    prev_level, _, _, _, _ = (
+        get_level(prev_count) if prev_count > 0 else (1, "", "", 0, 10)
+    )
     user_learning[user_id]["chat_count"] += 1
     new_count = user_learning[user_id]["chat_count"]
     new_level, new_title, new_emoji, _, _ = get_level(new_count)
@@ -193,26 +206,26 @@ def update_learning(user_id, username, message_content):
 # ── 레벨 / 칭호 시스템 ──────────────────────────────────────────────────────
 #   (min_count, level, emoji, title, next_threshold or None)
 LEVELS = [
-    (0,     1,  "🥚", "뉴비",       30),
-    (30,    2,  "🌱", "새내기",     100),
-    (100,   3,  "☕", "단골",       200),
-    (200,   4,  "💛", "찐단골",     350),
-    (350,   5,  "🔥", "단골손님",   550),
-    (550,   6,  "✨", "찐친",       800),
-    (800,   7,  "😊", "단짝 후보",  1100),
-    (1100,  8,  "🤝", "단짝",       1500),
-    (1500,  9,  "💝", "찐단짝",     2000),
-    (2000,  10, "💖", "베프",       2700),
-    (2700,  11, "🌟", "베프 인증",  3500),
-    (3500,  12, "🎯", "나혜 덕후",  4500),
-    (4500,  13, "🌙", "새벽 단짝",  5700),
-    (5700,  14, "💎", "나혜 전문가",7000),
-    (7000,  15, "🎖️", "나혜 매니아",8500),
-    (8500,  16, "🏆", "고인물",     10000),
-    (10000, 17, "👑", "레전드",     12000),
-    (12000, 18, "⭐", "슈퍼 레전드",15000),
-    (15000, 19, "🌈", "신화급",     20000),
-    (20000, 20, "🔱", "나혜 마스터",None),
+    (0, 1, "🥚", "뉴비", 30),
+    (30, 2, "🌱", "새내기", 100),
+    (100, 3, "☕", "단골", 200),
+    (200, 4, "💛", "찐단골", 350),
+    (350, 5, "🔥", "단골손님", 550),
+    (550, 6, "✨", "찐친", 800),
+    (800, 7, "😊", "단짝 후보", 1100),
+    (1100, 8, "🤝", "단짝", 1500),
+    (1500, 9, "💝", "찐단짝", 2000),
+    (2000, 10, "💖", "베프", 2700),
+    (2700, 11, "🌟", "베프 인증", 3500),
+    (3500, 12, "🎯", "나혜 덕후", 4500),
+    (4500, 13, "🌙", "새벽 단짝", 5700),
+    (5700, 14, "💎", "나혜 전문가", 7000),
+    (7000, 15, "🎖️", "나혜 매니아", 8500),
+    (8500, 16, "🏆", "고인물", 10000),
+    (10000, 17, "👑", "레전드", 12000),
+    (12000, 18, "⭐", "슈퍼 레전드", 15000),
+    (15000, 19, "🌈", "신화급", 20000),
+    (20000, 20, "🔱", "나혜 마스터", None),
 ]
 
 
@@ -428,7 +441,7 @@ KNOWLEDGE_PROMPTS = {
 # 욕허용 모드 활성화된 서버 ID set — 파일에서 복원
 # 욕허용 확인 대기 중인 서버 {guild_id: {"channel_id": int, "user_id": int}}
 _curse_pending: dict = {}
-_curse_mode_guilds: set = set()   # on_ready 에서 curse.json 로 채워짐
+_curse_mode_guilds: set = set()  # on_ready 에서 curse.json 로 채워짐
 _dirty_curse: bool = False
 
 # 대화 모드 ON 채널 — 이름 안 불러도 모든 메시지에 AI 응답
@@ -438,10 +451,11 @@ _chat_mode_channels: set = set()  # set[channel_id]
 _auto_leave_pending: set = set()  # set[guild_id]
 
 # TTS 채널 큐 (서버별 순차 재생)
-_tts_queues: dict = {}         # guild_id → asyncio.Queue[(text, user_id)]
-_tts_tasks:  dict = {}         # guild_id → asyncio.Task (consumer)
-_tts_paused_guilds: set = set()      # /나가 시 TTS 채널 자동입장 일시정지
-_easter_disabled_guilds: set = set() # /이스터에그 OFF 시 키워드·감정·중얼 비활성화
+_tts_queues: dict = {}  # guild_id → asyncio.Queue[(text, user_id)]
+_tts_tasks: dict = {}  # guild_id → asyncio.Task (consumer)
+_tts_paused_guilds: set = set()  # /나가 시 TTS 채널 자동입장 일시정지
+_easter_disabled_guilds: set = set()  # /이스터에그 OFF 시 키워드·감정·중얼 비활성화
+_blacklisted_users: set = set()  # 개발자 패널 블랙리스트 (봇 응답 차단)
 
 # 유저별 TTS 목소리 설정  {user_id: voice_key} — in-memory 캐시, user_learning에도 저장
 _user_tts_voice: dict = {}
@@ -453,22 +467,34 @@ _loop_guilds: set = set()
 
 # 지원 목소리 목록 (edge-tts 한국어)
 TTS_VOICES = {
-    "sunhi":   ("ko-KR-SunHiNeural",   "☀️ SunHi",   "여성 · 밝고 활발한"),
-    "jimin":   ("ko-KR-JiMinNeural",   "🌙 JiMin",   "여성 · 차분하고 낮은"),
-    "yujin":   ("ko-KR-YuJinNeural",   "🌸 YuJin",   "여성 · 어리고 귀여운"),
-    "seohyeon":("ko-KR-SeoHyeonNeural","💫 SeoHyeon","여성 · 부드럽고 또렷한"),
-    "injoon":  ("ko-KR-InJoonNeural",  "🎙️ InJoon",  "남성 · 자연스럽고 따뜻한"),
-    "hyunsu":  ("ko-KR-HyunsuNeural",  "🔷 Hyunsu",  "남성 · 차분하고 낮은"),
+    "sunhi": ("ko-KR-SunHiNeural", "☀️ SunHi", "여성 · 밝고 활발한"),
+    "jimin": ("ko-KR-JiMinNeural", "🌙 JiMin", "여성 · 차분하고 낮은"),
+    "yujin": ("ko-KR-YuJinNeural", "🌸 YuJin", "여성 · 어리고 귀여운"),
+    "seohyeon": ("ko-KR-SeoHyeonNeural", "💫 SeoHyeon", "여성 · 부드럽고 또렷한"),
+    "injoon": ("ko-KR-InJoonNeural", "🎙️ InJoon", "남성 · 자연스럽고 따뜻한"),
+    "hyunsu": ("ko-KR-HyunsuNeural", "🔷 Hyunsu", "남성 · 차분하고 낮은"),
 }
 TTS_DEFAULT_VOICE = "sunhi"
 
 
 # on_message 에서 매 호출마다 재생성되지 않도록 모듈 상수로 선언
 OTHER_AIS = [
-    "chatgpt", "챗gpt", "챗지피티", "gpt",
-    "claude", "클로드", "gemini", "제미나이",
-    "copilot", "코파일럿", "grok", "그록",
-    "llama", "라마", "perplexity", "퍼플렉시티",
+    "chatgpt",
+    "챗gpt",
+    "챗지피티",
+    "gpt",
+    "claude",
+    "클로드",
+    "gemini",
+    "제미나이",
+    "copilot",
+    "코파일럿",
+    "grok",
+    "그록",
+    "llama",
+    "라마",
+    "perplexity",
+    "퍼플렉시티",
 ]
 
 
@@ -656,10 +682,18 @@ def build_system_prompt(
 
 # ---- 이미지 생성 (Imagen 3 → Gemini Flash Image 폴백) ----
 _IMG_TRIGGERS = [
-    "이미지 생성", "이미지 만들", "이미지 그려", "이미지 뽑아",
-    "그림 그려", "그림 만들", "그림 뽑아",
-    "일러 그려", "일러스트 그려", "일러스트 만들",
-    "사진 만들", "사진 생성",
+    "이미지 생성",
+    "이미지 만들",
+    "이미지 그려",
+    "이미지 뽑아",
+    "그림 그려",
+    "그림 만들",
+    "그림 뽑아",
+    "일러 그려",
+    "일러스트 그려",
+    "일러스트 만들",
+    "사진 만들",
+    "사진 생성",
 ]
 
 _IMG_STRIP = re.compile(
@@ -885,10 +919,14 @@ async def _chat_with_fallback(
 
 
 async def _vision_reply(
-    system_prompt: str, text_content: str, image_bytes: bytes, mime_type: str = "image/jpeg"
+    system_prompt: str,
+    text_content: str,
+    image_bytes: bytes,
+    mime_type: str = "image/jpeg",
 ) -> str:
     """이미지 첨부 메시지를 Gemini Vision으로 처리 (Cohere·Groq는 vision 미지원)"""
     import base64
+
     if not _gemini_client:
         return "지금 이미지 못 읽어ㅠ Gemini 연결이 안 돼"
     b64 = base64.b64encode(image_bytes).decode()
@@ -1050,8 +1088,12 @@ class CurseConfirmView(discord.ui.View):
         self.gid = gid
         self.user_id = user_id
 
-    @discord.ui.button(label="이해했어, 켜줘!", style=discord.ButtonStyle.danger, emoji="🔥")
-    async def confirm(self, interaction: discord.Interaction, button: discord.ui.Button):
+    @discord.ui.button(
+        label="이해했어, 켜줘!", style=discord.ButtonStyle.danger, emoji="🔥"
+    )
+    async def confirm(
+        self, interaction: discord.Interaction, button: discord.ui.Button
+    ):
         if interaction.user.id != self.user_id:
             await interaction.response.send_message(
                 "이 버튼은 `/욕허용` 쓴 사람만 누를 수 있어!", ephemeral=True
@@ -1271,11 +1313,7 @@ YDL_OPTIONS = {
     "format": "bestaudio/best",
     "quiet": True,
     "no_warnings": True,
-    "socket_timeout": 10,
-    "extractor_args": {"youtube": {"player_client": ["android"]}},
-    "http_headers": {
-        "User-Agent": "com.google.android.youtube/17.36.4 (Linux; U; Android 12) gzip"
-    },
+    "socket_timeout": 15,
 }
 FFMPEG_OPTIONS = {
     "before_options": "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5",
@@ -1667,7 +1705,9 @@ async def _try_genius(query: str) -> tuple:
 
 async def fetch_lyrics_context(text: str) -> str:
     query = re.sub(
-        r"나혜야|나혜님|나헤야|나헤|Nahye|nahye|NAHYE|나혜|가사|알려줘|찾아줘|뭐야|뭔지|전부", "", text
+        r"나혜야|나혜님|나헤야|나헤|Nahye|nahye|NAHYE|나혜|가사|알려줘|찾아줘|뭐야|뭔지|전부",
+        "",
+        text,
     ).strip()
     query = " ".join(query.split())
     if not query:
@@ -1992,7 +2032,7 @@ async def play_next(guild, channel):
     if not queue:
         await channel.send("🎵 대기열이 비었어요!")
         return
-    orig_url, title = queue[0]   # peek — 실패 시 재시도 위해 아직 안 꺼냄
+    orig_url, title = queue[0]  # peek — 실패 시 재시도 위해 아직 안 꺼냄
     try:
         # 원본 URL → 유효한 스트림 URL 재추출
         tracks = await get_audio_url(orig_url)
@@ -2027,7 +2067,9 @@ async def play_next(guild, channel):
         vc.play(vol_source, after=after_play)
         loop_tag = "  🔁 반복 ON" if guild.id in _loop_guilds else ""
         embed = discord.Embed(description=f"### 🎵  {title}{loop_tag}", color=0xA78BFA)
-        embed.set_footer(text="⏭ /스킵  ⏸ /일시정지  ▶️ /재개  🔁 /반복  ⏹ /그만  🔊 /볼륨")
+        embed.set_footer(
+            text="⏭ /스킵  ⏸ /일시정지  ▶️ /재개  🔁 /반복  ⏹ /그만  🔊 /볼륨"
+        )
         await channel.send(embed=embed)
     except Exception as e:
         traceback.print_exc()
@@ -2039,9 +2081,8 @@ async def play_next(guild, channel):
 
 def _get_tts_voice(uid: str) -> str:
     """유저 TTS 목소리 키 반환 (메모리 캐시 → user_learning → 기본값)."""
-    return (
-        _user_tts_voice.get(uid)
-        or user_learning.get(uid, {}).get("tts_voice", TTS_DEFAULT_VOICE)
+    return _user_tts_voice.get(uid) or user_learning.get(uid, {}).get(
+        "tts_voice", TTS_DEFAULT_VOICE
     )
 
 
@@ -2694,6 +2735,8 @@ async def on_message(message):
     if message.author.bot:
         return
 
+    if str(message.author.id) in _blacklisted_users:
+        return
 
     if not message.guild:
         return
@@ -2704,7 +2747,20 @@ async def on_message(message):
     mentions_other_ai = any(ai in content_lower for ai in OTHER_AIS)
 
     name_called = (
-        any(w in message.content for w in ("나혜야", "나혜님", "나헤야", "나헤", "Nahye", "nahye", "NAHYE", "ai나혜", "AI나혜"))
+        any(
+            w in message.content
+            for w in (
+                "나혜야",
+                "나혜님",
+                "나헤야",
+                "나헤",
+                "Nahye",
+                "nahye",
+                "NAHYE",
+                "ai나혜",
+                "AI나혜",
+            )
+        )
         or re.search(r"나혜(?!야|님)", message.content)
     ) and not mentions_other_ai
 
@@ -2718,7 +2774,11 @@ async def on_message(message):
 
     _easter_off = message.guild and message.guild.id in _easter_disabled_guilds
 
-    if not name_called and not _easter_off and message.channel.name not in ("ai-대화방", "tts"):
+    if (
+        not name_called
+        and not _easter_off
+        and message.channel.name not in ("ai-대화방", "tts")
+    ):
         keywords = {
             "ㅋㅋㅋ": "엌ㅋㅋㅋ 개웃겨서 도티 낳음 ",
             "졸려": "코코넨네 하자~",
@@ -2743,7 +2803,18 @@ async def on_message(message):
         return
     if name_called and message.channel.name not in ("ai-대화방", "tts"):
         # 이름만 불렀을 때(내용 없음)만 반응 → 질문/내용 있으면 AI로 넘김
-        _name_triggers = ["나혜야", "나혜님", "ai나혜", "AI나혜", "나헤야", "나헤", "Nahye", "nahye", "NAHYE", "나혜"]
+        _name_triggers = [
+            "나혜야",
+            "나혜님",
+            "ai나혜",
+            "AI나혜",
+            "나헤야",
+            "나헤",
+            "Nahye",
+            "nahye",
+            "NAHYE",
+            "나혜",
+        ]
         _stripped = message.content
         for _t in _name_triggers:
             _stripped = _stripped.replace(_t, "")
@@ -2791,7 +2862,18 @@ async def on_message(message):
         content = message.content
 
         # 어느 채널이든 이름만 불렀을 때(내용 없음) → 짧은 반응
-        _name_triggers2 = ["나혜야", "나혜님", "ai나혜", "AI나혜", "나헤야", "나헤", "Nahye", "nahye", "NAHYE", "나혜"]
+        _name_triggers2 = [
+            "나혜야",
+            "나혜님",
+            "ai나혜",
+            "AI나혜",
+            "나헤야",
+            "나헤",
+            "Nahye",
+            "nahye",
+            "NAHYE",
+            "나혜",
+        ]
         _stripped2 = content
         for _t2 in _name_triggers2:
             _stripped2 = _stripped2.replace(_t2, "")
@@ -2912,7 +2994,9 @@ async def on_message(message):
 
         user_memory[user_id].append({"role": "user", "content": content})
         user_memory[user_id] = user_memory[user_id][-100:]
-        prev_lv, new_lv, new_title, new_emoji = update_learning(user_id, username, content)
+        prev_lv, new_lv, new_title, new_emoji = update_learning(
+            user_id, username, content
+        )
         if new_lv > prev_lv:
             udata = user_learning.get(user_id, {})
             name_display = udata.get("real_name") or udata.get("username") or username
@@ -2970,7 +3054,9 @@ async def on_message(message):
         if any(k in content for k in _IMG_TRIGGERS):
             img_prompt = _extract_img_prompt(content)
             if not img_prompt:
-                await message.channel.send("어떤 이미지 그려줄까? 내용을 같이 써줘~ 예) 나혜야 이미지 그려줘 우주에 떠있는 고양이")
+                await message.channel.send(
+                    "어떤 이미지 그려줄까? 내용을 같이 써줘~ 예) 나혜야 이미지 그려줘 우주에 떠있는 고양이"
+                )
                 return
             async with message.channel.typing():
                 await message.add_reaction("🎨")
@@ -2981,11 +3067,13 @@ async def on_message(message):
                     filename="image.png",
                 )
                 await message.channel.send(
-                    f"🖼️ 완성! **{img_prompt[:40]}{'...' if len(img_prompt)>40 else ''}**",
+                    f"🖼️ 완성! **{img_prompt[:40]}{'...' if len(img_prompt) > 40 else ''}**",
                     file=file,
                 )
             else:
-                await message.channel.send("😢 이미지 생성 실패했어ㅠ 잠깐 뒤에 다시 해봐!")
+                await message.channel.send(
+                    "😢 이미지 생성 실패했어ㅠ 잠깐 뒤에 다시 해봐!"
+                )
             return
 
         emotion = detect_emotion(content)
@@ -3548,13 +3636,19 @@ async def on_message(message):
 
                 # 이미지 첨부 감지 → Vision 처리
                 _img_att = next(
-                    (a for a in message.attachments if a.content_type and a.content_type.startswith("image/")),
+                    (
+                        a
+                        for a in message.attachments
+                        if a.content_type and a.content_type.startswith("image/")
+                    ),
                     None,
                 )
                 if _img_att:
                     _img_bytes = await _img_att.read()
                     _img_mime = _img_att.content_type.split(";")[0].strip()
-                    reply = await _vision_reply(system_prompt, content, _img_bytes, _img_mime)
+                    reply = await _vision_reply(
+                        system_prompt, content, _img_bytes, _img_mime
+                    )
                 else:
                     reply = await _chat_with_fallback(
                         system_prompt,
@@ -3620,11 +3714,11 @@ async def on_message(message):
                 reply = re.sub(r"죄송합니다[.!]?", "미안해", reply)
                 # 구체적인 패턴 먼저, generic은 맨 마지막 (순서 중요)
                 reply = (
-                    reply.replace("드리겠습니다", "줄게")   # 가장 긴 패턴 먼저
+                    reply.replace("드리겠습니다", "줄게")  # 가장 긴 패턴 먼저
                     .replace("하겠습니다", "할게")
                     .replace("있습니다", "있어")
-                    .replace("었습니다", "었어")             # 먹었습니다→먹었어
-                    .replace("았습니다", "았어")             # 잤습니다→잤어
+                    .replace("었습니다", "었어")  # 먹었습니다→먹었어
+                    .replace("았습니다", "았어")  # 잤습니다→잤어
                     .replace("했습니다", "했어")
                     .replace("입니다", "이야")
                     .replace("됩니다", "돼")
@@ -3647,21 +3741,32 @@ async def on_message(message):
                 if not curse_mode:
                     # 단어 단위 치환 (앞뒤 경계 확인) — 합성어 오작동 방지
                     _bad_word = [
-                        ("씨발", "아이고"), ("씨팔", "아이고"), ("개씨발", "아이고"),
-                        ("ㅅㅂ", "헉"), ("ㅁㅊ", "헉"),
-                        ("병신", "바보"), ("ㅄ", "바보"),
+                        ("씨발", "아이고"),
+                        ("씨팔", "아이고"),
+                        ("개씨발", "아이고"),
+                        ("ㅅㅂ", "헉"),
+                        ("ㅁㅊ", "헉"),
+                        ("병신", "바보"),
+                        ("ㅄ", "바보"),
                         ("개새끼", "얼간이"),
-                        ("미친놈", "얼간이"), ("미친새끼", "얼간이"),
-                        ("존나", "엄청"), ("졸라", "엄청"),
+                        ("미친놈", "얼간이"),
+                        ("미친새끼", "얼간이"),
+                        ("존나", "엄청"),
+                        ("졸라", "엄청"),
                         ("지랄", "왜 이래"),
-                        ("꺼져", "저리 가"), ("뒤져", "저리 가"), ("ㄲㅈ", "저리 가"),
-                        ("개같", "별로"), ("좆같", "별로"),
+                        ("꺼져", "저리 가"),
+                        ("뒤져", "저리 가"),
+                        ("ㄲㅈ", "저리 가"),
+                        ("개같", "별로"),
+                        ("좆같", "별로"),
                         ("좆", "어머"),
                     ]
                     for _b, _r in _bad_word:
                         reply = re.sub(
                             rf"(?<![가-힣]){re.escape(_b)}(?![가-힣])",
-                            _r, reply, flags=re.IGNORECASE
+                            _r,
+                            reply,
+                            flags=re.IGNORECASE,
                         )
                 # 7-0) 문자 단위 반복 스팸 방지 — 5회 초과 연속 시 4개로 압축 (ㅋㅋㅋㅋ는 자연스러운 한국어 텍스팅)
                 reply = re.sub(r"(.)\1{4,}", lambda m: m.group(1) * 4, reply)
@@ -4136,7 +4241,9 @@ async def leave(interaction: discord.Interaction):
         await interaction.response.send_message(embed=embed)
 
 
-@bot.tree.command(name="tts켜기", description="TTS 채널 자동입장 다시 켜기 (/나가로 꺼진 경우)")
+@bot.tree.command(
+    name="tts켜기", description="TTS 채널 자동입장 다시 켜기 (/나가로 꺼진 경우)"
+)
 async def tts_resume(interaction: discord.Interaction):
     gid = interaction.guild.id
     if gid in _tts_paused_guilds:
@@ -4146,13 +4253,13 @@ async def tts_resume(interaction: discord.Interaction):
             color=0x34D399,
         )
     else:
-        embed = discord.Embed(
-            description="ℹ️  TTS 채널 이미 켜져 있어!", color=0x94A3B8
-        )
+        embed = discord.Embed(description="ℹ️  TTS 채널 이미 켜져 있어!", color=0x94A3B8)
     await interaction.response.send_message(embed=embed)
 
 
-@bot.tree.command(name="이스터에그", description="키워드 반응·감정 반응·랜덤 중얼 ON/OFF 토글")
+@bot.tree.command(
+    name="이스터에그", description="키워드 반응·감정 반응·랜덤 중얼 ON/OFF 토글"
+)
 async def easter_egg_toggle(interaction: discord.Interaction):
     gid = interaction.guild.id
     if gid in _easter_disabled_guilds:
@@ -4209,7 +4316,9 @@ async def now_playing(interaction: discord.Interaction):
     gid = interaction.guild.id
     vc = interaction.guild.voice_client
     if not vc or not vc.is_playing():
-        embed = discord.Embed(description="❌  지금 재생 중인 곡이 없어!", color=0xEF4444)
+        embed = discord.Embed(
+            description="❌  지금 재생 중인 곡이 없어!", color=0xEF4444
+        )
         return await interaction.response.send_message(embed=embed)
     song = _current_song.get(gid)
     loop_tag = "  🔁 반복 ON" if gid in _loop_guilds else ""
@@ -4596,11 +4705,16 @@ async def name_setup_cmd(interaction: discord.Interaction):
     await interaction.response.send_modal(NameModal())
 
 
-@bot.tree.command(name="대화모드", description="이 채널에서 이름 없이도 나혜가 모든 메시지에 응답 ON/OFF")
-@discord.app_commands.choices(설정=[
-    discord.app_commands.Choice(name="on  — 이 채널 대화 모드 켜기", value="on"),
-    discord.app_commands.Choice(name="off — 이 채널 대화 모드 끄기", value="off"),
-])
+@bot.tree.command(
+    name="대화모드",
+    description="이 채널에서 이름 없이도 나혜가 모든 메시지에 응답 ON/OFF",
+)
+@discord.app_commands.choices(
+    설정=[
+        discord.app_commands.Choice(name="on  — 이 채널 대화 모드 켜기", value="on"),
+        discord.app_commands.Choice(name="off — 이 채널 대화 모드 끄기", value="off"),
+    ]
+)
 async def chat_mode_cmd(
     interaction: discord.Interaction,
     설정: discord.app_commands.Choice[str],
@@ -4632,7 +4746,9 @@ async def level_cmd(interaction: discord.Interaction):
     count = user_learning.get(uid, {}).get("chat_count", 0)
     lv, title, emoji, cur_min, nxt = get_level(count)
     udata = user_learning.get(uid, {})
-    name_display = udata.get("real_name") or udata.get("username") or interaction.user.display_name
+    name_display = (
+        udata.get("real_name") or udata.get("username") or interaction.user.display_name
+    )
 
     if nxt is not None:
         progress = count - cur_min
@@ -4640,7 +4756,11 @@ async def level_cmd(interaction: discord.Interaction):
         filled = round((progress / span) * 10)
         bar = "▓" * filled + "░" * (10 - filled)
         next_lv_info = next((row for row in LEVELS if row[0] == nxt), None)
-        next_label = f"Lv.{next_lv_info[1]} {next_lv_info[3]} {next_lv_info[2]}" if next_lv_info else ""
+        next_label = (
+            f"Lv.{next_lv_info[1]} {next_lv_info[3]} {next_lv_info[2]}"
+            if next_lv_info
+            else ""
+        )
         progress_text = (
             f"`{bar}`  {count} / {nxt}회\n"
             f"다음 칭호까지 **{nxt - count}회** 더 대화하면 돼!\n"
@@ -4652,9 +4772,7 @@ async def level_cmd(interaction: discord.Interaction):
     embed = discord.Embed(
         title=f"{emoji}  {name_display} 님의 레벨",
         description=(
-            f"**Lv.{lv}  {title}**\n"
-            f"총 대화 횟수: **{count}회**\n\n"
-            f"{progress_text}"
+            f"**Lv.{lv}  {title}**\n총 대화 횟수: **{count}회**\n\n{progress_text}"
         ),
         color=0xFBBF24,
     )
@@ -4715,10 +4833,18 @@ PATCH_LATEST = {
     "date": "2026-06-20",
     "title": "이미지 인식 & 대화 전면 개선",
     "entries": [
-        ("✨", "이미지 Vision 추가", "사진 첨부하면 나혜가 보고 대답해 — Gemini Flash 기반"),
+        (
+            "✨",
+            "이미지 Vision 추가",
+            "사진 첨부하면 나혜가 보고 대답해 — Gemini Flash 기반",
+        ),
         ("✨", "닉네임 호칭 설정", "첫 만남 버튼에 '닉네임으로 불러줘' 추가"),
         ("✨", "AI 페르소나 강화", "'그냥 나혜야ㅋ 왜?' — AI 모델 질문에도 몰입 유지"),
-        ("🔧", "욕 필터 오작동 수정", "'미친 듯이 공부' → '어머 듯이 공부' 변환되던 버그 수정"),
+        (
+            "🔧",
+            "욕 필터 오작동 수정",
+            "'미친 듯이 공부' → '어머 듯이 공부' 변환되던 버그 수정",
+        ),
         ("🔧", "ㅋ 반복 허용 확대", "ㅋㅋㅋㅋ까지 자연스럽게 — 5개 이상부터만 압축"),
         ("🔧", "답변 길이 & 기억 확대", "최대 250자, 대화 기억 40개 메시지로 확장"),
     ],
@@ -4951,8 +5077,6 @@ def build_patch_embed() -> discord.Embed:
     return embed
 
 
-
-
 @bot.tree.command(
     name="욕허용",
     description="욕 모드 ON/OFF (이 서버에서 나혜가 욕설을 편하게 받아쳐요)",
@@ -5055,20 +5179,332 @@ class FeedbackModal(discord.ui.Modal, title="버그 / 건의사항"):
                 name=f"{user.display_name} ({user.name})",
                 icon_url=user.display_avatar.url,
             )
-            embed.add_field(name="서버", value=guild.name if guild else "DM", inline=True)
+            embed.add_field(
+                name="서버", value=guild.name if guild else "DM", inline=True
+            )
             embed.add_field(name="유저 ID", value=str(user.id), inline=True)
             try:
                 await owner.send(embed=embed)
-                await interaction.response.send_message("전달했어! 확인하고 반영할게ㅎ", ephemeral=True)
+                await interaction.response.send_message(
+                    "전달했어! 확인하고 반영할게ㅎ", ephemeral=True
+                )
             except Exception:
-                await interaction.response.send_message("전달하다가 오류 났어ㅠ 채팅으로 직접 말해줘!", ephemeral=True)
+                await interaction.response.send_message(
+                    "전달하다가 오류 났어ㅠ 채팅으로 직접 말해줘!", ephemeral=True
+                )
         else:
-            await interaction.response.send_message("지금 전달이 안 돼ㅠ 채팅으로 말해줘!", ephemeral=True)
+            await interaction.response.send_message(
+                "지금 전달이 안 돼ㅠ 채팅으로 말해줘!", ephemeral=True
+            )
 
 
 @bot.tree.command(name="건의", description="버그 신고 또는 건의사항 전달하기")
 async def feedback(interaction: discord.Interaction):
     await interaction.response.send_modal(FeedbackModal())
+
+
+# ──────────────────────────────────────────────
+#  개발자 모드 (봇 소유자 전용)
+# ──────────────────────────────────────────────
+async def _is_owner(interaction: discord.Interaction) -> bool:
+    try:
+        app = await bot.application_info()
+        return interaction.user.id == app.owner.id
+    except Exception:
+        return False
+
+
+class DevAnnounceModal(discord.ui.Modal, title="전체 공지 보내기"):
+    msg_input = discord.ui.TextInput(
+        label="공지 내용",
+        placeholder="모든 서버 ai-대화방에 전송돼",
+        style=discord.TextStyle.paragraph,
+        max_length=500,
+        required=True,
+    )
+
+    async def on_submit(self, interaction: discord.Interaction):
+        text = self.msg_input.value.strip()
+        await interaction.response.defer(ephemeral=True)
+        sent, failed = 0, 0
+        for guild in bot.guilds:
+            ch = discord.utils.get(guild.text_channels, name="ai-대화방")
+            if ch:
+                try:
+                    embed = discord.Embed(
+                        title="📢  나혜 공지",
+                        description=text,
+                        color=0xA78BFA,
+                    )
+                    embed.set_footer(text="🌸 나혜 개발자")
+                    await ch.send(embed=embed)
+                    sent += 1
+                except Exception:
+                    failed += 1
+        await interaction.followup.send(
+            f"✅ 전송 완료 — {sent}개 서버 성공 / {failed}개 실패", ephemeral=True
+        )
+
+
+class DevMemClearModal(discord.ui.Modal, title="유저 메모리 초기화"):
+    uid_input = discord.ui.TextInput(
+        label="유저 ID",
+        placeholder="숫자로 된 Discord 유저 ID",
+        max_length=25,
+        required=True,
+    )
+
+    async def on_submit(self, interaction: discord.Interaction):
+        uid = self.uid_input.value.strip()
+        cleared = []
+        if uid in user_memory:
+            user_memory[uid].clear()
+            global _dirty_memory
+            _dirty_memory = True
+            cleared.append("대화 기억")
+        if uid in user_learning:
+            user_learning[uid].pop("memories", None)
+            global _dirty_learning
+            _dirty_learning = True
+            cleared.append("장기 기억")
+        if cleared:
+            await interaction.response.send_message(
+                f"🗑️ `{uid}` — {', '.join(cleared)} 초기화 완료", ephemeral=True
+            )
+        else:
+            await interaction.response.send_message(
+                f"❌ `{uid}` 유저 데이터 없음", ephemeral=True
+            )
+
+
+class DevBlacklistModal(discord.ui.Modal, title="블랙리스트 관리"):
+    uid_input = discord.ui.TextInput(
+        label="유저 ID",
+        placeholder="숫자로 된 Discord 유저 ID",
+        max_length=25,
+        required=True,
+    )
+    action_input = discord.ui.TextInput(
+        label="추가/해제",
+        placeholder="추가 → add   해제 → remove",
+        max_length=10,
+        required=True,
+    )
+
+    async def on_submit(self, interaction: discord.Interaction):
+        uid = self.uid_input.value.strip()
+        action = self.action_input.value.strip().lower()
+        if action in ("add", "추가"):
+            _blacklisted_users.add(uid)
+            await interaction.response.send_message(
+                f"🚫 `{uid}` 블랙리스트 **추가** 완료 — 이제 봇이 반응 안 해", ephemeral=True
+            )
+        elif action in ("remove", "해제"):
+            _blacklisted_users.discard(uid)
+            await interaction.response.send_message(
+                f"✅ `{uid}` 블랙리스트 **해제** 완료", ephemeral=True
+            )
+        else:
+            await interaction.response.send_message(
+                "❌ `add` 또는 `remove` 로 입력해줘", ephemeral=True
+            )
+
+
+class DevUserLookupModal(discord.ui.Modal, title="유저 데이터 조회"):
+    uid_input = discord.ui.TextInput(
+        label="유저 ID",
+        placeholder="숫자로 된 Discord 유저 ID",
+        max_length=25,
+        required=True,
+    )
+
+    async def on_submit(self, interaction: discord.Interaction):
+        uid = self.uid_input.value.strip()
+        data = user_learning.get(uid, {})
+        mem = user_memory.get(uid, [])
+        if not data and not mem:
+            await interaction.response.send_message(
+                f"❌ `{uid}` 유저 데이터 없음", ephemeral=True
+            )
+            return
+        nickname = data.get("nickname", "없음")
+        msg_count = data.get("msg_count", 0)
+        tone = data.get("tone", "없음")
+        interests = ", ".join(data.get("interests", [])) or "없음"
+        memories = data.get("memories", [])
+        blacklisted = "🚫 차단됨" if uid in _blacklisted_users else "✅ 정상"
+        embed = discord.Embed(
+            title=f"👤  유저 `{uid}` 조회",
+            color=0x60A5FA,
+        )
+        embed.add_field(name="닉네임", value=nickname, inline=True)
+        embed.add_field(name="총 메시지", value=f"{msg_count}회", inline=True)
+        embed.add_field(name="말투", value=tone, inline=True)
+        embed.add_field(name="관심사", value=interests, inline=True)
+        embed.add_field(name="장기기억 수", value=f"{len(memories)}개", inline=True)
+        embed.add_field(name="단기기억 수", value=f"{len(mem)}개", inline=True)
+        embed.add_field(name="블랙리스트", value=blacklisted, inline=True)
+        if memories:
+            embed.add_field(
+                name="최근 장기기억",
+                value="\n".join(f"• {m}" for m in memories[-3:]),
+                inline=False,
+            )
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+
+class DevQueueClearModal(discord.ui.Modal, title="음악 대기열 초기화"):
+    gid_input = discord.ui.TextInput(
+        label="서버 ID",
+        placeholder="숫자로 된 Discord 서버 ID (비우면 전체)",
+        max_length=25,
+        required=False,
+    )
+
+    async def on_submit(self, interaction: discord.Interaction):
+        gid_str = self.gid_input.value.strip()
+        if gid_str:
+            try:
+                gid = int(gid_str)
+            except ValueError:
+                await interaction.response.send_message("❌ 서버 ID가 잘못됐어", ephemeral=True)
+                return
+            q = music_queues.get(gid)
+            if q:
+                q.clear()
+                await interaction.response.send_message(
+                    f"🗑️ 서버 `{gid}` 대기열 초기화 완료", ephemeral=True
+                )
+            else:
+                await interaction.response.send_message(
+                    f"❌ 서버 `{gid}` 대기열이 없거나 이미 비어 있어", ephemeral=True
+                )
+        else:
+            count = sum(1 for q in music_queues.values() if q)
+            for q in music_queues.values():
+                q.clear()
+            await interaction.response.send_message(
+                f"🗑️ 전체 {count}개 서버 대기열 초기화 완료", ephemeral=True
+            )
+
+
+class DevPanel(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=120)
+
+    @discord.ui.button(label="봇 상태", style=discord.ButtonStyle.primary, emoji="📊")
+    async def status_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        now = time.time()
+        # 업타임
+        uptime_sec = int(now - BOT_START_TIME)
+        h, m = divmod(uptime_sec // 60, 60)
+        uptime_str = f"{h}시간 {m}분"
+        # AI 서킷브레이커
+        cohere_ok = now > _cohere_429_until
+        gemini_ok = now > _gemini_429_until
+        cohere_str = "✅ 사용 가능" if cohere_ok else f"🚫 {int((_cohere_429_until - now) / 60)}분 후 해제"
+        gemini_str = "✅ 사용 가능" if gemini_ok else f"🚫 {int((_gemini_429_until - now) / 60)}분 후 해제"
+        total = sum(_ai_stats.values()) or 1
+        embed = discord.Embed(title="📊  나혜 봇 상태", color=0x6EE7B7)
+        embed.add_field(name="⏱ 업타임", value=uptime_str, inline=True)
+        embed.add_field(name="🌐 서버 수", value=f"{len(bot.guilds)}개", inline=True)
+        embed.add_field(name="👥 유저 수", value=f"{len(user_learning)}명", inline=True)
+        embed.add_field(
+            name="🤖 AI 호출 통계",
+            value=(
+                f"Cohere: {_ai_stats['cohere']}회\n"
+                f"Gemini Flash: {_ai_stats['gemini_flash']}회\n"
+                f"Gemini Lite: {_ai_stats['gemini_lite']}회\n"
+                f"Groq: {_ai_stats['groq']}회\n"
+                f"실패: {_ai_stats['failed']}회"
+            ),
+            inline=True,
+        )
+        embed.add_field(
+            name="🔌 서킷브레이커",
+            value=f"Cohere: {cohere_str}\nGemini: {gemini_str}",
+            inline=True,
+        )
+        embed.add_field(name="🎵 마지막 AI", value=_last_ai_used, inline=True)
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    @discord.ui.button(label="AI 리셋", style=discord.ButtonStyle.danger, emoji="🔄")
+    async def reset_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        global _cohere_429_until, _gemini_429_until
+        _cohere_429_until = 0.0
+        _gemini_429_until = 0.0
+        await interaction.response.send_message(
+            "✅ Cohere / Gemini 서킷브레이커 강제 해제 완료!", ephemeral=True
+        )
+
+    @discord.ui.button(label="전체 공지", style=discord.ButtonStyle.secondary, emoji="📢")
+    async def announce_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_modal(DevAnnounceModal())
+
+    @discord.ui.button(label="메모리 초기화", style=discord.ButtonStyle.secondary, emoji="🗑️")
+    async def memclear_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_modal(DevMemClearModal())
+
+    @discord.ui.button(label="서버 목록", style=discord.ButtonStyle.secondary, emoji="🌐", row=1)
+    async def guilds_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        lines = []
+        for g in bot.guilds:
+            q_len = len(music_queues.get(g.id, []))
+            q_str = f" 🎵{q_len}" if q_len else ""
+            curse = "🤬" if g.id in _curse_mode_guilds else ""
+            lines.append(f"`{g.id}` **{g.name}** ({g.member_count}명){q_str}{curse}")
+        chunks = []
+        chunk = ""
+        for line in lines:
+            if len(chunk) + len(line) + 1 > 3900:
+                chunks.append(chunk)
+                chunk = line
+            else:
+                chunk = (chunk + "\n" + line).strip()
+        if chunk:
+            chunks.append(chunk)
+        embed = discord.Embed(
+            title=f"🌐  서버 목록 ({len(bot.guilds)}개)",
+            description=chunks[0] if chunks else "없음",
+            color=0x34D399,
+        )
+        if len(chunks) > 1:
+            embed.set_footer(text=f"(+{len(chunks)-1}페이지 더 있음)")
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    @discord.ui.button(label="유저 조회", style=discord.ButtonStyle.secondary, emoji="👤", row=1)
+    async def lookup_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_modal(DevUserLookupModal())
+
+    @discord.ui.button(label="블랙리스트", style=discord.ButtonStyle.danger, emoji="🚫", row=1)
+    async def blacklist_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_modal(DevBlacklistModal())
+
+    @discord.ui.button(label="대기열 초기화", style=discord.ButtonStyle.danger, emoji="🎵", row=1)
+    async def qclear_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_modal(DevQueueClearModal())
+
+
+@bot.tree.command(name="개발자", description="봇 개발자 전용 관리 패널")
+async def dev_panel(interaction: discord.Interaction):
+    if not await _is_owner(interaction):
+        await interaction.response.send_message("❌ 개발자 전용 명령어야!", ephemeral=True)
+        return
+    bl_count = len(_blacklisted_users)
+    embed = discord.Embed(
+        title="🛠️  개발자 패널",
+        description=f"서버 **{len(bot.guilds)}개** · 블랙리스트 **{bl_count}명**",
+        color=0xFBBF24,
+    )
+    embed.add_field(name="📊 봇 상태", value="AI 통계·서킷브레이커·업타임", inline=True)
+    embed.add_field(name="🔄 AI 리셋", value="Cohere/Gemini 429 강제 해제", inline=True)
+    embed.add_field(name="📢 전체 공지", value="모든 서버 ai-대화방에 공지", inline=True)
+    embed.add_field(name="🗑️ 메모리 초기화", value="특정 유저 기억 삭제", inline=True)
+    embed.add_field(name="🌐 서버 목록", value="참여 서버·멤버·대기열 현황", inline=True)
+    embed.add_field(name="👤 유저 조회", value="ID로 학습 데이터 확인", inline=True)
+    embed.add_field(name="🚫 블랙리스트", value="유저 봇 응답 차단/해제", inline=True)
+    embed.add_field(name="🎵 대기열 초기화", value="서버 음악 대기열 삭제", inline=True)
+    await interaction.response.send_message(embed=embed, view=DevPanel(), ephemeral=True)
 
 
 HELP_PAGES = [
@@ -5409,7 +5845,9 @@ async def tts_voice_command(interaction: discord.Interaction):
         description=f"현재 목소리: **{cur_info[1]}** ({cur_info[2]})\n아래 드롭다운에서 원하는 목소리를 골라봐!",
         color=0x60A5FA,
     )
-    await interaction.response.send_message(embed=embed, view=VoiceView(), ephemeral=True)
+    await interaction.response.send_message(
+        embed=embed, view=VoiceView(), ephemeral=True
+    )
 
 
 @bot.tree.command(name="도움", description="봇 기능 목록 안내")
